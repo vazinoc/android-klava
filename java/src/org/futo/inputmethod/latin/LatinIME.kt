@@ -310,7 +310,6 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
             }
         }
 
-        // TODO: Verify this actually fixes anything
         if(drawableProvider?.displayDpi != resources.displayMetrics.densityDpi) {
             updateDrawableProvider(colorScheme)
             recreateKeyboard()
@@ -356,8 +355,6 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
         }
     }
 
-    // Called by UixManager when the intention is to subsequently call LegacyKeyboardView with hidden=false
-    // Maybe this can be changed to LaunchedEffect
     fun onKeyboardShown() {
         if(pendingRecreateKeyboard) {
             pendingRecreateKeyboard = false
@@ -473,7 +470,6 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
             }
         }
 
-        // Listen to size changes
         launchJob {
             val prev: MutableMap<KeyboardSizeSettingKind, String?> =
                 KeyboardSizeSettingKind.entries.associateWith { null }.toMutableMap()
@@ -544,8 +540,6 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
 
         uixManager.setContent()
 
-        // Due to annoying Android animation nonsense, we may never receive a notification of the
-        // correct insets, a 250ms delay to recheck is the best solution I could come up with
         window.window?.decorView?.setOnApplyWindowInsetsListener { v, insets ->
             window.window!!.decorView.post { onSizeUpdated() }
             window.window!!.decorView.postDelayed({ onSizeMaybeUpdated() }, 250L)
@@ -566,8 +560,6 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
         isInputModal = to
     }
 
-    // The keyboard view really doesn't like being detached, so it's always
-    // shown, but resized to 0 if an action window is open
     @Composable
     internal fun LegacyKeyboardView(modifier: Modifier, hidden: Boolean) {
         val config = LocalConfiguration.current
@@ -603,7 +595,6 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
         }
     }
 
-    // necessary for when KeyboardSwitcher updates the theme
     fun updateLegacyView(newView: View) {
         legacyInputView.value = newView
         composeView?.let {
@@ -631,7 +622,6 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
         super.onStartInput(attribute, restarting)
         latinIMELegacy.onStartInput(attribute, restarting)
         uixManager.inputStarted(attribute)
-        //imeManager.onStartInput() // TODO: Is this call needed or not?
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
@@ -729,7 +719,6 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
     }
 
     override fun onComputeInsets(outInsets: Insets?) {
-        // This method may be called before {@link #setInputView(View)}.
         if (legacyInputView.value == null || composeView == null) {
             return
         }
@@ -790,8 +779,7 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
     }
 
     override fun onEvaluateFullscreenMode(): Boolean {
-        // TODO: Revisit fullscreen mode
-        return false //latinIMELegacy.onEvaluateFullscreenMode(super.onEvaluateFullscreenMode())
+        return false 
     }
 
     override fun updateFullscreenMode() {
@@ -799,13 +787,29 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
         latinIMELegacy.updateFullscreenMode()
     }
 
+    // --- ПРАВИЛЬНАЯ ОБРАБОТКА ФИЗИЧЕСКОЙ КЛАВИАТУРЫ ---
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (event != null && event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_SPACE) {
+            Subtypes.switchToNextLanguage(this, 1)?.let { nextSubtype ->
+                changeSubtype(nextSubtype)
+            }
+            return true
+        }
+
+        if (event != null && event.deviceId > 0 && event.unicodeChar != 0) {
+            return super.onKeyDown(keyCode, event)
+        }
+
         return latinIMELegacy.onKeyDown(keyCode, event) || super.onKeyDown(keyCode, event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (event != null && event.deviceId > 0 && event.unicodeChar != 0) {
+            return super.onKeyUp(keyCode, event)
+        }
         return latinIMELegacy.onKeyUp(keyCode, event) || super.onKeyUp(keyCode, event)
     }
+    // ---------------------------------------------------
 
     override fun updateVisibility(shouldShowSuggestionsStrip: Boolean, fullscreenMode: Boolean) {
         uixManager.updateVisibility(shouldShowSuggestionsStrip, fullscreenMode)
@@ -818,8 +822,6 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
     ) {
         uixManager.setSuggestions(suggestedWords, rtlSubtype, cfg)
 
-        // Cache the auto-correction in accessibility code so we can speak it if the user
-        // touches a key that will insert it.
         AccessibilityUtils.getInstance().setAutoCorrection(suggestedWords)
     }
 
@@ -932,12 +934,10 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
 
         Log.i("LatinIME", "Device has been unlocked, reloading settings")
 
-        // Every place that called getDefaultSharedPreferences now needs to be refreshed or call it again
         UserBinaryDictionary.resetUserDictionariesRequiringRecreation()
 
-        // Mainly Settings singleton needs to be refreshed
         Settings.init(applicationContext)
-        Settings.getInstance().onSharedPreferenceChanged(null /* unused */, "")
+        Settings.getInstance().onSharedPreferenceChanged(null, "")
         latinIMELegacy.loadSettings()
         recreateKeyboard()
 
@@ -946,11 +946,8 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
         uixManager.onPersistentStatesUnlocked()
 
         CanThrowIfDebug = true
-
-        // TODO: Spell checker service
     }
 
-    /// Switch to voice IME or to internal one if it's no longer present.
     fun trySwitchToShortcutIMEorInternal() {
         if(!latinIMELegacy.mRichImm.switchToShortcutIme(this)) {
             uixManager.activateInternalVoiceIME()
