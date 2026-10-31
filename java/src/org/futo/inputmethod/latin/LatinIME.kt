@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -569,10 +570,19 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
     // shown, but resized to 0 if an action window is open
     @Composable
     internal fun LegacyKeyboardView(modifier: Modifier, hidden: Boolean) {
-        val modifier = if(hidden) {
+        val config = LocalConfiguration.current
+        val isHardKeyboardConnected = config.keyboard != Configuration.KEYBOARD_NOKEYS &&
+                config.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
+
+        val actuallyHidden = hidden || isHardKeyboardConnected
+
+        val finalModifier = if(actuallyHidden) {
             modifier
                 .clipToBounds()
                 .size(0.dp)
+                .onSizeChanged {
+                    inputViewHeight = it.height
+                }
         } else {
             modifier.onSizeChanged {
                 inputViewHeight = it.height
@@ -585,7 +595,7 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
                 legacyInputView!!.also {
                     if(it.parent != null) (it.parent as ViewGroup).removeView(it)
                 }
-            }, modifier = modifier, onRelease = {
+            }, modifier = finalModifier, onRelease = {
                 val view = it as InputView
                 view.deallocateMemory()
                 view.removeAllViews()
