@@ -61,11 +61,10 @@ fun String.toLocale() = localeFromString(this)
 
 fun Locale.stripExtensionsIfNeeded(): Locale {
     val newLocale = if(Build.VERSION.SDK_INT >= 26) {
-        this.stripExtensions().stripExtensions() // TODO: Sometimes this requires two calls??
+        this.stripExtensions().stripExtensions() 
     } else {
         this
     }
-
     return newLocale
 }
 
@@ -85,7 +84,22 @@ val MultilingualBucketSetting = SettingsKey(
 )
 
 object Subtypes {
-    // Removes extensions from existing existing subtypes which are not meant to be there
+
+    // СИНХРОНИЗАЦИЯ С СИСТЕМОЙ: передаем добавленные языки в систему Android
+    fun syncToSystem(context: Context) {
+        try {
+            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            val myImeId = imm.inputMethodList.find { it.packageName == context.packageName }?.id ?: return
+            
+            val subtypesStringList = context.getSettingBlocking(SubtypesSetting)
+            val subtypesArray = subtypesStringList.map { convertToSubtype(it) }.toTypedArray()
+            
+            imm.setAdditionalInputMethodSubtypes(myImeId, subtypesArray)
+        } catch (e: Exception) {
+            Log.e("Subtypes", "Failed to sync subtypes to system", e)
+        }
+    }
+
     private fun removeExtensionsIfNecessary(context: Context) {
         val currentSubtypes = context.getSettingBlocking(SubtypesSetting)
         if(currentSubtypes.isEmpty()) return
@@ -106,6 +120,7 @@ object Subtypes {
         if(newSubtypes != currentSubtypes) {
             Log.w("Subtypes", "Removed extensions: $currentSubtypes - $newSubtypes")
             context.setSettingBlocking(SubtypesSetting.key, newSubtypes)
+            syncToSystem(context)
         }
     }
 
@@ -115,6 +130,7 @@ object Subtypes {
         val currentSubtypes = context.getSettingBlocking(SubtypesSetting)
         if(currentSubtypes.isNotEmpty()) {
             removeExtensionsIfNecessary(context)
+            syncToSystem(context)
             return
         }
 
@@ -131,11 +147,11 @@ object Subtypes {
         }
 
         if(numAdded == 0) {
-            // We need to have something...
             addLanguage(context, Locale.forLanguageTag("zz"), "qwerty")
         }
 
         context.setSettingBlocking(ActiveSubtype.key, context.getSettingBlocking(SubtypesSetting).firstOrNull() ?: return)
+        syncToSystem(context)
     }
 
     fun findClosestLocaleLayouts(context: Context, locale: Locale): List<String> {
@@ -190,9 +206,9 @@ object Subtypes {
                 it != value
             } ?: "")
         }
+        syncToSystem(context)
     }
 
-    // TODO: Set extra value MultilingualTyping=en;lt;etc
     fun makeSubtype(locale: String, layout: String): InputMethodSubtype =
         InputMethodSubtypeBuilder()
             .setSubtypeLocale(locale)
@@ -207,6 +223,7 @@ object Subtypes {
         val currentSetting = context.getSettingBlocking(SubtypesSetting)
 
         context.setSettingBlocking(SubtypesSetting.key, currentSetting + setOf(value))
+        syncToSystem(context)
     }
 
     fun getName(inputMethodSubtype: InputMethodSubtype): String {
@@ -348,8 +365,6 @@ object Subtypes {
             return locale.language.uppercase();
         }
 
-        // TODO: We have two different exceptional locale systems now, should probably just stick
-        //  with the LayoutManager one.
         val definedName = LayoutManager.getExceptionalNameForLocale(locale, locale)
         if(definedName != null) return definedName
 
