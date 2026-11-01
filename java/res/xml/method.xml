@@ -5,12 +5,24 @@
     android:supportsSwitchingToNextInputMethod="true"
     android:supportsInlineSuggestions="true"
     android:suppressesSpellChecker="true">
-    
-    <!-- Базовый fallback-сабтайп. Основные языки будут добавляться динамически через код -->
+
+    <!-- Английский (США) -->
     <subtype android:icon="@drawable/ic_launcher_foreground"
         android:label="@string/english_ime_name"
+        android:imeSubtypeLocale="en_US"
+        android:languageTag="en-US"
         android:imeSubtypeMode="keyboard"
         android:isAsciiCapable="true"
-        android:overridesImplicitlyEnabledSubtype="true" />
-        
+        android:overridesImplicitlyEnabledSubtype="true"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty" />
+
+    <!-- Русский -->
+    <subtype android:icon="@drawable/ic_launcher_foreground"
+        android:label="Русский"
+        android:imeSubtypeLocale="ru"
+        android:languageTag="ru"
+        android:imeSubtypeMode="keyboard"
+        android:isAsciiCapable="false"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=east_slavic" />
+
 </input-method>
