@@ -174,11 +174,11 @@ object Subtypes {
 
         return InputMethodSubtypeBuilder()
             .setSubtypeLocale(locale)
+            .setSubtypeMode("keyboard") // Указываем системе, что это именно клавиатура
             .setSubtypeExtraValue(extraValue)
             .setLanguageTag(languageTag)
             .build()
     }
-
     fun getActiveSubtype(context: Context): InputMethodSubtype {
         val activeSubtype = context.getSettingBlocking(ActiveSubtype).ifEmpty {
             context.getSettingBlocking(SubtypesSetting).firstOrNull() ?: "en_US:"
@@ -212,6 +212,7 @@ object Subtypes {
     fun makeSubtype(locale: String, layout: String): InputMethodSubtype =
         InputMethodSubtypeBuilder()
             .setSubtypeLocale(locale)
+            .setSubtypeMode("keyboard") // Указываем системе, что это именно клавиатура
             .setSubtypeExtraValue("KeyboardLayoutSet=$layout")
             .build()
 
