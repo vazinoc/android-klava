@@ -170,13 +170,14 @@ object Subtypes {
         val locale = splits[0]
 
         val extraValue = splits.getOrNull(1) ?: ""
-        val languageTag = splits.getOrNull(2) ?: ""
+        // Если язык не был сохранен ранее, берем его из locale
+        val languageTag = splits.getOrNull(2)?.takeIf { it.isNotBlank() } ?: locale
 
         return InputMethodSubtypeBuilder()
             .setSubtypeLocale(locale)
-            .setSubtypeMode("keyboard") // Указываем системе, что это именно клавиатура
+            .setSubtypeMode("keyboard") 
             .setSubtypeExtraValue(extraValue)
-            .setLanguageTag(languageTag)
+            .setLanguageTag(languageTag) // <-- Ключевой момент для физических клавиатур
             .build()
     }
     fun getActiveSubtype(context: Context): InputMethodSubtype {
@@ -212,7 +213,8 @@ object Subtypes {
     fun makeSubtype(locale: String, layout: String): InputMethodSubtype =
         InputMethodSubtypeBuilder()
             .setSubtypeLocale(locale)
-            .setSubtypeMode("keyboard") // Указываем системе, что это именно клавиатура
+            .setSubtypeMode("keyboard") 
+            .setLanguageTag(locale) // <-- Ключевой момент для физических клавиатур
             .setSubtypeExtraValue("KeyboardLayoutSet=$layout")
             .build()
 
