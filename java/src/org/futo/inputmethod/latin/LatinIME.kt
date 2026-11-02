@@ -651,6 +651,14 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
         latinIMELegacy.onCurrentInputMethodSubtypeChanged(newSubtype)
     }
 
+    override fun onCurrentInputMethodSubtypeChanged(newSubtype: InputMethodSubtype) {
+        super.onCurrentInputMethodSubtypeChanged(newSubtype)
+        val subtypeStr = Subtypes.subtypeToString(newSubtype)
+        lifecycleScope.launch {
+            setSetting(ActiveSubtype.key, subtypeStr)
+        }
+    }
+
     override fun onWindowShown() {
         super.onWindowShown()
         latinIMELegacy.onWindowShown()
@@ -825,7 +833,6 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
             KeyEvent.KEYCODE_PERIOD -> if (isUpper) 'Ю' else 'ю'
             KeyEvent.KEYCODE_GRAVE -> if (isUpper) 'Ё' else 'ё'
             
-            // Знаки препинания и цифры (Caps Lock на них не влияет, только Shift)
             KeyEvent.KEYCODE_SLASH -> if (isShift) ',' else '.'
             KeyEvent.KEYCODE_2 -> if (isShift) '"' else null
             KeyEvent.KEYCODE_3 -> if (isShift) '№' else null
@@ -838,16 +845,33 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (event == null) return super.onKeyDown(keyCode, event)
+
         // Переключаем язык по Ctrl+Space
-        if (event != null && event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_SPACE) {
-            Subtypes.switchToNextLanguage(this, 1)?.let { nextSubtype ->
-                changeSubtype(nextSubtype)
+        if (event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_SPACE) {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            window.window?.attributes?.token?.let { token ->
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        switchToNextInputMethod(true)
+                    } else {
+                        imm.switchToNextInputMethod(token, true)
+                    }
+                } catch (e: Exception) {
+                    Log.e("LatinIME", "Failed to switch input method", e)
+                }
             }
             return true
         }
 
-        // Если включен русский язык, перехватываем аппаратные клавиши напрямую
-        if (event != null && event.deviceId > 0 && currentSubtype.contains("ru")) {
+        // Пропускаем горячие клавиши (Ctrl+C, Ctrl+V и т.д.) в систему
+        val isShortcut = event.isCtrlPressed || event.isAltPressed || event.isMetaPressed
+        if (event.deviceId > 0 && isShortcut) {
+            return false
+        }
+
+        // Если включен русский язык, перехватываем аппаратные клавиши
+        if (event.deviceId > 0 && currentSubtype.contains("ru")) {
             val isShift = event.isShiftPressed
             val isCaps = event.isCapsLockOn
             
@@ -856,22 +880,29 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
                 currentInputConnection?.commitText(ruChar.toString(), 1)
                 return true
             }
-            // Пробел, Enter, Backspace и обычные цифры уйдут ниже и обработаются системой
         }
 
-        if (event != null && event.deviceId > 0 && event.unicodeChar != 0) {
-            return super.onKeyDown(keyCode, event)
+        // Для английского и знаков препинания отдаем управление системе
+        if (event.deviceId > 0 && event.unicodeChar != 0) {
+            return false
         }
 
         return latinIMELegacy.onKeyDown(keyCode, event) || super.onKeyDown(keyCode, event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
-        if (event != null && event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_SPACE) {
+        if (event == null) return super.onKeyUp(keyCode, event)
+
+        if (event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_SPACE) {
             return true
         }
         
-        if (event != null && event.deviceId > 0 && currentSubtype.contains("ru")) {
+        val isShortcut = event.isCtrlPressed || event.isAltPressed || event.isMetaPressed
+        if (event.deviceId > 0 && isShortcut) {
+            return false
+        }
+        
+        if (event.deviceId > 0 && currentSubtype.contains("ru")) {
             val isShift = event.isShiftPressed
             val isCaps = event.isCapsLockOn
             if (getRussianChar(keyCode, isShift, isCaps) != null) {
@@ -879,8 +910,8 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
             }
         }
         
-        if (event != null && event.deviceId > 0 && event.unicodeChar != 0) {
-            return super.onKeyUp(keyCode, event)
+        if (event.deviceId > 0 && event.unicodeChar != 0) {
+            return false
         }
         
         return latinIMELegacy.onKeyUp(keyCode, event) || super.onKeyUp(keyCode, event)
@@ -1044,4 +1075,4 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
             else ->
                 KeyboardSizeSettingKind.Portrait
         }
-}
+        }
