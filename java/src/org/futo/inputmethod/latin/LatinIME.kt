@@ -18,6 +18,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestionsRequest
 import android.view.inputmethod.InlineSuggestionsResponse
 import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputMethodManager
 import android.view.inputmethod.InputMethodSubtype
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.size
@@ -849,14 +850,10 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
 
         // Переключаем язык по Ctrl+Space
         if (event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_SPACE) {
-            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
             window.window?.attributes?.token?.let { token ->
                 try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        switchToNextInputMethod(true)
-                    } else {
-                        imm.switchToNextInputMethod(token, true)
-                    }
+                    imm.switchToNextInputMethod(token, true)
                 } catch (e: Exception) {
                     Log.e("LatinIME", "Failed to switch input method", e)
                 }
@@ -1075,4 +1072,4 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
             else ->
                 KeyboardSizeSettingKind.Portrait
         }
-        }
+}
